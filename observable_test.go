@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"fmt"
 	"github.com/reactivex/rxgo/handlers"
 	"github.com/reactivex/rxgo/optional"
 	"github.com/stretchr/testify/assert"
@@ -1644,4 +1645,12 @@ func TestStartWithObservableWithError(t *testing.T) {
 func TestStartWithObservableFromEmpty(t *testing.T) {
 	obs := Just(1, 2, 3).StartWithObservable(Empty())
 	AssertThatObservable(t, obs, HasItems(1, 2, 3))
+}
+
+func TestDelayEach(t *testing.T) {
+	Just(1, 2, 3).DelayEach(WithDuration(1 * time.Second)).Subscribe(handlers.NextFunc(func(i interface{}) {
+		fmt.Printf("%v\n", i)
+	}))
+
+	time.Sleep(5 * time.Second)
 }

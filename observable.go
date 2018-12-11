@@ -29,6 +29,7 @@ type Observable interface {
 	Contains(equal Predicate) Single
 	Count() Single
 	DefaultIfEmpty(defaultValue interface{}) Observable
+	DelayEach(delay Duration) Observable
 	Distinct(apply Function) Observable
 	DistinctUntilChanged(apply Function) Observable
 	DoOnEach(onNotification Consumer) Observable
@@ -1335,6 +1336,25 @@ func (o *observable) StartWithObservable(obs Observable) Observable {
 		it = o.iterable.Iterator()
 		for it.Next() {
 			item := it.Value()
+			out <- item
+		}
+
+		close(out)
+	}
+	return newColdObservable(f)
+}
+
+// DelayEach delay the emission of each item according to a given delay
+func (o *observable) DelayEach(delay Duration) Observable {
+	if delay == nil {
+		delay = WithDuration(0)
+	}
+
+	f := func(out chan interface{}) {
+		it := o.Iterator()
+		for it.Next() {
+			item := it.Value()
+			time.Sleep(delay.duration())
 			out <- item
 		}
 
