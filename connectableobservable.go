@@ -1,10 +1,9 @@
 package rxgo
 
 import (
-	"sync"
-
 	"github.com/reactivex/rxgo/handlers"
 	"github.com/reactivex/rxgo/options"
+	"sync"
 )
 
 type ConnectableObservable interface {
@@ -14,12 +13,13 @@ type ConnectableObservable interface {
 }
 
 type connectableObservable struct {
-	iterator   Iterator
-	observable Observable
-	observers  []Observer
+	iterator       Iterator
+	observable     Observable
+	observersMutex sync.Mutex
+	observers      []Observer
 }
 
-func newConnectableObservableFromObservable(observable Observable) ConnectableObservable {
+func newConnectableObservable(observable Observable) ConnectableObservable {
 	return &connectableObservable{
 		observable: observable,
 		iterator:   observable.Iterator(),
@@ -31,57 +31,53 @@ func (c *connectableObservable) Iterator() Iterator {
 }
 
 func (c *connectableObservable) Subscribe(handler handlers.EventHandler, opts ...options.Option) Observer {
+	observableOptions := options.ParseOptions(opts...)
+
 	ob := CheckEventHandler(handler)
+	ob.setBackpressureStrategy(observableOptions.BackpressureStrategy())
+	var ch chan interface{}
+	if observableOptions.BackpressureStrategy() == options.Buffer {
+		ch = make(chan interface{}, observableOptions.Buffer())
+	} else {
+		ch = make(chan interface{})
+	}
+	ob.setChannel(ch)
+	c.observersMutex.Lock()
 	c.observers = append(c.observers, ob)
+	c.observersMutex.Unlock()
+
+	go func() {
+		for item := range ch {
+			switch item := item.(type) {
+			case error:
+				ob.OnError(item)
+				return
+			default:
+				ob.OnNext(item)
+			}
+		}
+	}()
+
 	return ob
 }
 
 func (c *connectableObservable) Connect() Observer {
-	source := make([]interface{}, 0)
-
-	it := c.iterator
-	for it.Next() {
-		item := it.Value()
-		source = append(source, item)
-	}
-
-	var wg sync.WaitGroup
-
-	for _, ob := range c.observers {
-		wg.Add(1)
-		local := make([]interface{}, len(source))
-		copy(local, source)
-
-		go func(ob Observer) {
-			defer wg.Done()
-			var e error
-		OuterLoop:
-			for _, item := range local {
-				switch item := item.(type) {
-				case error:
-					ob.OnError(item)
-
-					// Record error
-					e = item
-					break OuterLoop
-				default:
-					ob.OnNext(item)
-				}
-			}
-
-			if e == nil {
-				ob.OnDone()
-			} else {
-				ob.OnError(e)
-			}
-		}(ob)
-	}
-
-	ob := NewObserver()
+	out := NewObserver()
 	go func() {
-		wg.Wait()
-		ob.OnDone()
+		it := c.iterator
+		for it.Next() {
+			item := it.Value()
+			c.observersMutex.Lock()
+			for _, observer := range c.observers {
+				c.observersMutex.Unlock()
+				select {
+				case observer.getChannel() <- item:
+				default:
+				}
+				c.observersMutex.Lock()
+			}
+			c.observersMutex.Unlock()
+		}
 	}()
-
-	return ob
+	return out
 }

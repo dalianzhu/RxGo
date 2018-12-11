@@ -1,7 +1,9 @@
 package rxgo
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/reactivex/rxgo/handlers"
 	"github.com/reactivex/rxgo/optional"
@@ -77,4 +79,38 @@ func TestSingleMapWithTwoSubscription(t *testing.T) {
 
 	AssertThatSingle(t, just, HasValue(3))
 	AssertThatSingle(t, just, HasValue(3))
+}
+
+type Context interface {
+	isBlue() bool
+}
+
+func TestX(t *testing.T) {
+	ch := make(chan interface{})
+	go func() {
+		for {
+			v := <-ch
+			time.Sleep(500 * time.Millisecond)
+			fmt.Printf("%v\n", v)
+		}
+	}()
+
+	time.Sleep(1 * time.Second)
+	msg := "hi"
+	select {
+	case ch <- msg:
+		fmt.Println("sent message", msg)
+	default:
+		fmt.Println("no message sent")
+	}
+	time.Sleep(1 * time.Second)
+
+	select {
+	case ch <- msg:
+		fmt.Println("sent message", msg)
+	default:
+		fmt.Println("no message sent")
+	}
+
+	time.Sleep(1 * time.Second)
 }

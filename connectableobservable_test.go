@@ -1,45 +1,24 @@
 package rxgo
 
 import (
-	"errors"
-	"testing"
-
+	"fmt"
 	"github.com/reactivex/rxgo/handlers"
-	"github.com/stretchr/testify/assert"
+	"github.com/reactivex/rxgo/options"
+	"testing"
+	"time"
 )
 
 func TestConnect(t *testing.T) {
-	just := Just(1, 2, 3).Publish()
+	obs := Just(1, 2, 3).Publish()
 	got1 := make([]interface{}, 0)
-	got2 := make([]interface{}, 0)
 
-	just.Subscribe(handlers.NextFunc(func(i interface{}) {
+	obs.Subscribe(handlers.NextFunc(func(i interface{}) {
 		got1 = append(got1, i)
-	}))
+		time.Sleep(200 * time.Millisecond) // Pause the observer on purpose
+	}), options.WithBufferBackpressureStrategy(1))
+	//}), options.WithDropBackpressureStrategy())
+	obs.Connect()
 
-	just.Subscribe(handlers.NextFunc(func(i interface{}) {
-		got2 = append(got2, i)
-	}))
-
-	just.Connect().Block()
-	assert.Equal(t, []interface{}{1, 2, 3}, got1)
-	assert.Equal(t, []interface{}{1, 2, 3}, got2)
-}
-
-func TestConnectOnError(t *testing.T) {
-	just := Just(1, 2, 3, errors.New("foo"), 4).Publish()
-	got1 := make([]interface{}, 0)
-	got2 := make([]interface{}, 0)
-
-	just.Subscribe(handlers.NextFunc(func(i interface{}) {
-		got1 = append(got1, i)
-	}))
-
-	just.Subscribe(handlers.NextFunc(func(i interface{}) {
-		got2 = append(got2, i)
-	}))
-
-	just.Connect().Block()
-	assert.Equal(t, []interface{}{1, 2, 3}, got1)
-	assert.Equal(t, []interface{}{1, 2, 3}, got2)
+	time.Sleep(500 * time.Millisecond) // Ugly wait just for the example
+	fmt.Printf("%v\n", got1)
 }
