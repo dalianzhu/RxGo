@@ -1,9 +1,5 @@
 package rxgo
 
-import (
-	"testing"
-)
-
 //func TestConnect(t *testing.T) {
 //	obs := Just(1, 2, 3).Publish()
 //	got1 := make([]interface{}, 0)
@@ -47,10 +43,10 @@ import (
 //	fmt.Printf("%v\n", got1)
 //}
 
-func TestConnectableObservableMap(t *testing.T) {
-	stream := Just(1, 2, 3).Publish().Map(func(i interface{}) interface{} {
-		return i.(int) * 10
-	})
-
-	AssertThatConnectableObservable(t, stream, HasItems(10, 20, 30))
-}
+//func TestConnectableObservableMap(t *testing.T) {
+//	stream := Just(1, 2, 3).Publish().Map(func(i interface{}) interface{} {
+//		return i.(int) * 10
+//	})
+//
+//	AssertThatConnectableObservable(t, stream, HasItems(10, 20, 30))
+//}

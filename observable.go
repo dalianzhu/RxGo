@@ -37,6 +37,7 @@ type Observable interface {
 	Map(apply Function) Observable
 	Max(comparator Comparator) OptionalSingle
 	Min(comparator Comparator) OptionalSingle
+	ObserveOn(scheduler options.Scheduler) Observable
 	OnErrorResumeNext(resumeSequence ErrorToObservableFunction) Observable
 	OnErrorReturn(resumeFunc ErrorFunction) Observable
 	Publish() ConnectableObservable
@@ -72,6 +73,7 @@ type observable struct {
 	observableFactory   func() Observable
 	onErrorReturn       ErrorFunction
 	onErrorResumeNext   ErrorToObservableFunction
+	scheduler           options.Scheduler
 }
 
 // CheckHandler checks the underlying type of an EventHandler.
@@ -163,7 +165,9 @@ func (o *observable) Subscribe(handler handlers.EventHandler, opts ...options.Op
 // Map maps a Function predicate to each item in Observable and
 // returns a new Observable with applied items.
 func (o *observable) Map(apply Function) Observable {
-	return newColdObservable(mapFromFunction(o.iterable, apply))
+	return &observable{
+		iterable: newIterableFromFunc(mapFromFunction(o.iterable, apply)),
+	}
 }
 
 func (o *observable) ElementAt(index uint) Single {
@@ -173,59 +177,79 @@ func (o *observable) ElementAt(index uint) Single {
 // Take takes first n items in the original Obserable and returns
 // a new Observable with the taken items.
 func (o *observable) Take(nth uint) Observable {
-	return newColdObservable(take(o.iterable, nth))
+	return &observable{
+		iterable: newIterableFromFunc(take(o.iterable, nth)),
+	}
 }
 
 // TakeLast takes last n items in the original Observable and returns
 // a new Observable with the taken items.
 func (o *observable) TakeLast(nth uint) Observable {
-	return newColdObservable(takeLast(o.iterable, nth))
+	return &observable{
+		iterable: newIterableFromFunc(takeLast(o.iterable, nth)),
+	}
 }
 
 // Filter filters items in the original Observable and returns
 // a new Observable with the filtered items.
 func (o *observable) Filter(apply Predicate) Observable {
-	return newColdObservable(filter(o.iterable, apply))
+	return &observable{
+		iterable: newIterableFromFunc(filter(o.iterable, apply)),
+	}
 }
 
 // First returns new Observable which emit only first item.
 func (o *observable) First() Observable {
-	return newColdObservable(first(o.iterable))
+	return &observable{
+		iterable: newIterableFromFunc(first(o.iterable)),
+	}
 }
 
 // Last returns a new Observable which emit only last item.
 func (o *observable) Last() Observable {
-	return newColdObservable(last(o.iterable))
+	return &observable{
+		iterable: newIterableFromFunc(last(o.iterable)),
+	}
 }
 
 // Distinct suppresses duplicate items in the original Observable and returns
 // a new Observable.
 func (o *observable) Distinct(apply Function) Observable {
-	return newColdObservable(distinct(o.iterable, apply))
+	return &observable{
+		iterable: newIterableFromFunc(distinct(o.iterable, apply)),
+	}
 }
 
 // DistinctUntilChanged suppresses consecutive duplicate items in the original
 // Observable and returns a new Observable.
 func (o *observable) DistinctUntilChanged(apply Function) Observable {
-	return newColdObservable(distinctUntilChanged(o.iterable, apply))
+	return &observable{
+		iterable: newIterableFromFunc(distinctUntilChanged(o.iterable, apply)),
+	}
 }
 
 // Skip suppresses the first n items in the original Observable and
 // returns a new Observable with the rest items.
 func (o *observable) Skip(nth uint) Observable {
-	return newColdObservable(skip(o.iterable, nth))
+	return &observable{
+		iterable: newIterableFromFunc(skip(o.iterable, nth)),
+	}
 }
 
 // SkipLast suppresses the last n items in the original Observable and
 // returns a new Observable with the rest items.
 func (o *observable) SkipLast(nth uint) Observable {
-	return newColdObservable(skipLast(o.iterable, nth))
+	return &observable{
+		iterable: newIterableFromFunc(skipLast(o.iterable, nth)),
+	}
 }
 
 // Scan applies Function2 predicate to each item in the original
 // Observable sequentially and emits each successive value on a new Observable.
 func (o *observable) Scan(apply Function2) Observable {
-	return newColdObservable(scan(o.iterable, apply))
+	return &observable{
+		iterable: newIterableFromFunc(scan(o.iterable, apply)),
+	}
 }
 
 func (o *observable) Reduce(apply Function2) OptionalSingle {
@@ -251,36 +275,48 @@ func (o *observable) LastOrDefault(defaultValue interface{}) Single {
 // TakeWhile emits items emitted by an Observable as long as the
 // specified condition is true, then skip the remainder.
 func (o *observable) TakeWhile(apply Predicate) Observable {
-	return newColdObservable(takeWhile(o.iterable, apply))
+	return &observable{
+		iterable: newIterableFromFunc(takeWhile(o.iterable, apply)),
+	}
 }
 
 // SkipWhile discard items emitted by an Observable until a specified condition becomes false.
 func (o *observable) SkipWhile(apply Predicate) Observable {
-	return newColdObservable(skipWhile(o.iterable, apply))
+	return &observable{
+		iterable: newIterableFromFunc(skipWhile(o.iterable, apply)),
+	}
 }
 
 // ToList collects all items from an Observable and emit them as a single List.
 func (o *observable) ToList() Observable {
-	return newColdObservable(toList(o.iterable))
+	return &observable{
+		iterable: newIterableFromFunc(toList(o.iterable)),
+	}
 }
 
 // ToMap convert the sequence of items emitted by an Observable
 // into a map keyed by a specified key function
 func (o *observable) ToMap(keySelector Function) Observable {
-	return newColdObservable(toMap(o.iterable, keySelector))
+	return &observable{
+		iterable: newIterableFromFunc(toMap(o.iterable, keySelector)),
+	}
 }
 
 // ToMapWithValueSelector convert the sequence of items emitted by an Observable
 // into a map keyed by a specified key function and valued by another
 // value function
 func (o *observable) ToMapWithValueSelector(keySelector Function, valueSelector Function) Observable {
-	return newColdObservable(toMapWithValueSelector(o.iterable, keySelector, valueSelector))
+	return &observable{
+		iterable: newIterableFromFunc(toMapWithValueSelector(o.iterable, keySelector, valueSelector)),
+	}
 }
 
 // ZipFromObservable che emissions of multiple Observables together via a specified function
 // and emit single items for each combination based on the results of this function
 func (o *observable) ZipFromObservable(publisher Observable, zipper Function2) Observable {
-	return newColdObservable(zipFromObservable(o.iterable, publisher, zipper))
+	return &observable{
+		iterable: newIterableFromFunc(zipFromObservable(o.iterable, publisher, zipper)),
+	}
 }
 
 // ForEach subscribes to the Observable and receives notifications for each element.
@@ -332,19 +368,25 @@ func (o *observable) Contains(equal Predicate) Single {
 // DefaultIfEmpty returns an Observable that emits the items emitted by the source
 // Observable or a specified default item if the source Observable is empty.
 func (o *observable) DefaultIfEmpty(defaultValue interface{}) Observable {
-	return newColdObservable(defaultIfEmpty(o.iterable, defaultValue))
+	return &observable{
+		iterable: newIterableFromFunc(defaultIfEmpty(o.iterable, defaultValue)),
+	}
 }
 
 // DoOnEach operator allows you to establish a callback that the resulting Observable
 // will call each time it emits an item
 func (o *observable) DoOnEach(onNotification Consumer) Observable {
-	return newColdObservable(doOnEach(o.iterable, onNotification))
+	return &observable{
+		iterable: newIterableFromFunc(doOnEach(o.iterable, onNotification)),
+	}
 }
 
 // Repeat returns an Observable that repeats the sequence of items emitted by the source Observable
 // at most count times, at a particular frequency.
 func (o *observable) Repeat(count int64, frequency Duration) Observable {
-	return newColdObservable(repeat(o.iterable, count, frequency))
+	return &observable{
+		iterable: newIterableFromFunc(repeat(o.iterable, count, frequency)),
+	}
 }
 
 // AverageInt calculates the average of numbers emitted by an Observable and emits this average int.
@@ -399,7 +441,9 @@ func (o *observable) Min(comparator Comparator) OptionalSingle {
 // the resulting Observable emits the current buffer and propagates
 // the notification from the source Observable.
 func (o *observable) BufferWithCount(count, skip int) Observable {
-	return newColdObservable(bufferWithCount(o.iterable, count, skip))
+	return &observable{
+		iterable: newIterableFromFunc(bufferWithCount(o.iterable, count, skip)),
+	}
 }
 
 // BufferWithTime returns an Observable that emits buffers of items it collects from the source
@@ -408,7 +452,9 @@ func (o *observable) BufferWithCount(count, skip int) Observable {
 // When the source Observable completes or encounters an error, the resulting Observable emits
 // the current buffer and propagates the notification from the source Observable.
 func (o *observable) BufferWithTime(timespan, timeshift Duration) Observable {
-	return newColdObservable(bufferWithTime(o.iterable, timespan, timeshift))
+	return &observable{
+		iterable: newIterableFromFunc(bufferWithTime(o.iterable, timespan, timeshift)),
+	}
 }
 
 // BufferWithTimeOrCount returns an Observable that emits buffers of items it collects
@@ -418,7 +464,9 @@ func (o *observable) BufferWithTime(timespan, timeshift Duration) Observable {
 // When the source Observable completes or encounters an error, the resulting Observable
 // emits the current buffer and propagates the notification from the source Observable.
 func (o *observable) BufferWithTimeOrCount(timespan Duration, count int) Observable {
-	return newColdObservable(bufferWithTimeOrCount(o.iterable, timespan, count))
+	return &observable{
+		iterable: newIterableFromFunc(bufferWithTimeOrCount(o.iterable, timespan, count)),
+	}
 }
 
 // SumInt64 calculates the average of integers emitted by an Observable and emits an int64.
@@ -439,23 +487,36 @@ func (o *observable) SumFloat64() Single {
 // StartWithItems returns an Observable that emits the specified items before it begins to emit items emitted
 // by the source Observable.
 func (o *observable) StartWithItems(items ...interface{}) Observable {
-	return newColdObservable(startWithItems(o.iterable, items...))
+	return &observable{
+		iterable: newIterableFromFunc(startWithItems(o.iterable, items...)),
+	}
 }
 
 // StartWithIterable returns an Observable that emits the items in a specified Iterable before it begins to
 // emit items emitted by the source Observable.
 func (o *observable) StartWithIterable(iterable Iterable) Observable {
-	return newColdObservable(startWithIterable(o.iterable, iterable))
+	return &observable{
+		iterable: newIterableFromFunc(startWithIterable(o.iterable, iterable)),
+	}
 }
 
 // StartWithObservable returns an Observable that emits the items in a specified Observable before it begins to
 // emit items emitted by the source Observable.
 func (o *observable) StartWithObservable(obs Observable) Observable {
-	return newColdObservable(startWithObservable(o.iterable, obs))
+	return &observable{
+		iterable: newIterableFromFunc(startWithObservable(o.iterable, obs)),
+	}
 }
 
 func (o *observable) ToFlowable(opts ...options.Option) Flowable {
 	options := options.ParseOptions(opts...)
 
 	return newFlowableFromIterable(o.iterable, options.BackpressureStrategy(), options.Buffer())
+}
+
+func (o *observable) ObserveOn(scheduler options.Scheduler) Observable {
+	return &observable{
+		iterable:  o.iterable,
+		scheduler: scheduler,
+	}
 }

@@ -9,41 +9,6 @@ import (
 	"github.com/reactivex/rxgo/handlers"
 )
 
-// newObservableFromChannel creates an Observable from a given channel
-func newObservableFromChannel(ch chan interface{}) Observable {
-	return &observable{
-		iterable: newIterableFromChannel(ch),
-	}
-}
-
-// newColdObservable creates a cold observable
-func newColdObservable(f func(chan interface{})) Observable {
-	return &observable{
-		iterable: newIterableFromFunc(f),
-	}
-}
-
-// newObservableFromIterable creates an Observable from a given iterable
-func newObservableFromIterable(it Iterable) Observable {
-	return &observable{
-		iterable: it,
-	}
-}
-
-// newObservableFromSlice creates an Observable from a given channel
-func newObservableFromSlice(s []interface{}) Observable {
-	return &observable{
-		iterable: newIterableFromSlice(s),
-	}
-}
-
-// newObservableFromRange creates an Observable from a range.
-func newObservableFromRange(start, count int) Observable {
-	return &observable{
-		iterable: newIterableFromRange(start, count),
-	}
-}
-
 func isClosed(ch <-chan interface{}) bool {
 	select {
 	case <-ch:
@@ -87,7 +52,9 @@ func Create(source func(emitter Observer, disposed bool)) Observable {
 		source(emitter, isClosed(out))
 	}()
 
-	return newObservableFromChannel(out)
+	return &observable{
+		iterable: newIterableFromChannel(out),
+	}
 }
 
 // Concat emit the emissions from two or more Observables without interleaving them
@@ -116,19 +83,27 @@ func Concat(observable1 Observable, observables ...Observable) Observable {
 
 		close(out)
 	}()
-	return newObservableFromChannel(out)
+	return &observable{
+		iterable: newIterableFromChannel(out),
+	}
 }
 
 func FromSlice(s []interface{}) Observable {
-	return newObservableFromSlice(s)
+	return &observable{
+		iterable: newIterableFromSlice(s),
+	}
 }
 
 func FromChannel(ch chan interface{}) Observable {
-	return newObservableFromChannel(ch)
+	return &observable{
+		iterable: newIterableFromChannel(ch),
+	}
 }
 
 func FromIterable(it Iterable) Observable {
-	return newObservableFromIterable(it)
+	return &observable{
+		iterable: it,
+	}
 }
 
 // From creates a new Observable from an Iterator.
@@ -144,7 +119,9 @@ func From(it Iterator) Observable {
 		}
 		close(out)
 	}()
-	return newObservableFromChannel(out)
+	return &observable{
+		iterable: newIterableFromChannel(out),
+	}
 }
 
 // Error returns an Observable that invokes an Observer's onError method
@@ -161,7 +138,9 @@ func Empty() Observable {
 	go func() {
 		close(out)
 	}()
-	return newObservableFromChannel(out)
+	return &observable{
+		iterable: newIterableFromChannel(out),
+	}
 }
 
 // Interval creates an Observable emitting incremental integers infinitely between
@@ -182,7 +161,9 @@ func Interval(term chan struct{}, interval time.Duration) Observable {
 		}
 		close(out)
 	}(term)
-	return newObservableFromChannel(out)
+	return &observable{
+		iterable: newIterableFromChannel(out),
+	}
 }
 
 // Range creates an Observable that emits a particular range of sequential integers.
@@ -194,7 +175,9 @@ func Range(start, count int) (Observable, error) {
 		return nil, errors.New(errors.IllegalInputError, "max value is bigger than MaxInt32")
 	}
 
-	return newObservableFromRange(start, count), nil
+	return &observable{
+		iterable: newIterableFromRange(start, count),
+	}, nil
 }
 
 // Just creates an Observable with the provided item(s).
@@ -205,7 +188,9 @@ func Just(item interface{}, items ...interface{}) Observable {
 		items = []interface{}{item}
 	}
 
-	return newObservableFromSlice(items)
+	return &observable{
+		iterable: newIterableFromSlice(items),
+	}
 }
 
 // Start creates an Observable from one or more directive-like Supplier
@@ -234,13 +219,17 @@ func Start(f Supplier, fs ...Supplier) Observable {
 		close(out)
 	}()
 
-	return newObservableFromChannel(out)
+	return &observable{
+		iterable: newIterableFromChannel(out),
+	}
 }
 
 // Never create an Observable that emits no items and does not terminate
 func Never() Observable {
 	out := make(chan interface{})
-	return newObservableFromChannel(out)
+	return &observable{
+		iterable: newIterableFromChannel(out),
+	}
 }
 
 // Timer returns an Observable that emits the zeroed value of a float64 after a
@@ -256,5 +245,7 @@ func Timer(d Duration) Observable {
 		out <- 0.
 		close(out)
 	}()
-	return newObservableFromChannel(out)
+	return &observable{
+		iterable: newIterableFromChannel(out),
+	}
 }

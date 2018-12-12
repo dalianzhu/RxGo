@@ -1,10 +1,16 @@
 package options
 
 type BackpressureStrategy uint32
+type Scheduler uint32
 
 const (
 	Drop BackpressureStrategy = iota
 	Buffer
+)
+
+const (
+	Blocking Scheduler = iota
+	NonBlocking
 )
 
 // Option is the configuration of an observable
