@@ -638,7 +638,7 @@ func (o *observable) ForEach(nextFunc handlers.NextFunc, errFunc handlers.ErrFun
 // Publish returns a ConnectableObservable which waits until its connect method
 // is called before it begins emitting items to those Observers that have subscribed to it.
 func (o *observable) Publish() ConnectableObservable {
-	return newConnectableObservable(o)
+	return newConnectableObservableFromIterable(o.iterable)
 }
 
 func (o *observable) All(predicate Predicate) Single {

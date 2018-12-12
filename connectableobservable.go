@@ -9,28 +9,33 @@ import (
 type ConnectableObservable interface {
 	Iterable
 	Connect() Observer
+	Map(Function) ConnectableObservable
 	Subscribe(handler handlers.EventHandler, opts ...options.Option) Observer
 }
 
 type connectableObservable struct {
-	iterator       Iterator
-	observable     Observable
+	iterable       Iterable
 	observersMutex sync.Mutex
 	observers      []Observer
 }
 
-func newConnectableObservable(observable Observable) ConnectableObservable {
+func newConnectableObservableFromIterable(iterable Iterable) ConnectableObservable {
 	return &connectableObservable{
-		observable: observable,
-		iterator:   observable.Iterator(),
+		iterable: iterable,
 	}
 }
 
-func (c *connectableObservable) Iterator() Iterator {
-	return c.iterator
+func newConnectableObservableFromFunc(f func(chan interface{})) ConnectableObservable {
+	return &connectableObservable{
+		iterable: newIterableFromFunc(f),
+	}
 }
 
-func (c *connectableObservable) Subscribe(handler handlers.EventHandler, opts ...options.Option) Observer {
+func (o *connectableObservable) Iterator() Iterator {
+	return o.iterable.Iterator()
+}
+
+func (o *connectableObservable) Subscribe(handler handlers.EventHandler, opts ...options.Option) Observer {
 	observableOptions := options.ParseOptions(opts...)
 
 	ob := CheckEventHandler(handler)
@@ -42,9 +47,9 @@ func (c *connectableObservable) Subscribe(handler handlers.EventHandler, opts ..
 		ch = make(chan interface{})
 	}
 	ob.setChannel(ch)
-	c.observersMutex.Lock()
-	c.observers = append(c.observers, ob)
-	c.observersMutex.Unlock()
+	o.observersMutex.Lock()
+	o.observers = append(o.observers, ob)
+	o.observersMutex.Unlock()
 
 	go func() {
 		for item := range ch {
@@ -61,22 +66,38 @@ func (c *connectableObservable) Subscribe(handler handlers.EventHandler, opts ..
 	return ob
 }
 
-func (c *connectableObservable) Connect() Observer {
-	out := NewObserver()
-	go func() {
-		it := c.iterator
+func (o *connectableObservable) Map(apply Function) ConnectableObservable {
+	f := func(out chan interface{}) {
+		it := o.Iterator()
 		for {
 			if item, err := it.Next(); err == nil {
-				c.observersMutex.Lock()
-				for _, observer := range c.observers {
-					c.observersMutex.Unlock()
+				out <- apply(item)
+			} else {
+				break
+			}
+		}
+		close(out)
+	}
+
+	return newConnectableObservableFromFunc(f)
+}
+
+func (o *connectableObservable) Connect() Observer {
+	out := NewObserver()
+	go func() {
+		it := o.iterable.Iterator()
+		for {
+			if item, err := it.Next(); err == nil {
+				o.observersMutex.Lock()
+				for _, observer := range o.observers {
+					o.observersMutex.Unlock()
 					select {
 					case observer.getChannel() <- item:
 					default:
 					}
-					c.observersMutex.Lock()
+					o.observersMutex.Lock()
 				}
-				c.observersMutex.Unlock()
+				o.observersMutex.Unlock()
 			} else {
 				break
 			}
