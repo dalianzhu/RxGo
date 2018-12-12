@@ -65,18 +65,21 @@ func (c *connectableObservable) Connect() Observer {
 	out := NewObserver()
 	go func() {
 		it := c.iterator
-		for it.Next() {
-			item := it.Value()
-			c.observersMutex.Lock()
-			for _, observer := range c.observers {
-				c.observersMutex.Unlock()
-				select {
-				case observer.getChannel() <- item:
-				default:
-				}
+		for {
+			if item, err := it.Next(); err == nil {
 				c.observersMutex.Lock()
+				for _, observer := range c.observers {
+					c.observersMutex.Unlock()
+					select {
+					case observer.getChannel() <- item:
+					default:
+					}
+					c.observersMutex.Lock()
+				}
+				c.observersMutex.Unlock()
+			} else {
+				break
 			}
-			c.observersMutex.Unlock()
 		}
 	}()
 	return out
