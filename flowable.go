@@ -142,7 +142,7 @@ func (o *flowable) Distinct(apply Function) Flowable {
 }
 
 func (o *flowable) DistinctUntilChanged(apply Function) Flowable {
-	return newFlowableFromFunc(distinctUntilChanged(o.iterable, apply), o.backpressureStrategy, o.buffer)
+	return newFlowableFromFunc(distinct(o.iterable, apply), o.backpressureStrategy, o.buffer)
 }
 
 func (o *flowable) DoOnEach(onNotification Consumer) Flowable {
