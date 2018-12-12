@@ -67,19 +67,7 @@ func (o *connectableObservable) Subscribe(handler handlers.EventHandler, opts ..
 }
 
 func (o *connectableObservable) Map(apply Function) ConnectableObservable {
-	f := func(out chan interface{}) {
-		it := o.Iterator()
-		for {
-			if item, err := it.Next(); err == nil {
-				out <- apply(item)
-			} else {
-				break
-			}
-		}
-		close(out)
-	}
-
-	return newConnectableObservableFromFunc(f)
+	return newConnectableObservableFromFunc(mapFromFunction(o.iterable, apply))
 }
 
 func (o *connectableObservable) Connect() Observer {

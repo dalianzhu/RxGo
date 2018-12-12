@@ -56,6 +56,7 @@ type Observable interface {
 	Take(nth uint) Observable
 	TakeLast(nth uint) Observable
 	TakeWhile(apply Predicate) Observable
+	ToFlowable(opts ...options.Option) Flowable
 	ToList() Observable
 	ToMap(keySelector Function) Observable
 	ToMapWithValueSelector(keySelector Function, valueSelector Function) Observable
@@ -451,4 +452,10 @@ func (o *observable) StartWithIterable(iterable Iterable) Observable {
 // emit items emitted by the source Observable.
 func (o *observable) StartWithObservable(obs Observable) Observable {
 	return newColdObservable(startWithObservable(o.iterable, obs))
+}
+
+func (o *observable) ToFlowable(opts ...options.Option) Flowable {
+	options := options.ParseOptions(opts...)
+
+	return newFlowableFromIterable(o.iterable, options.BackpressureStrategy(), options.Buffer())
 }

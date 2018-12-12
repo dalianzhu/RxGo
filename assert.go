@@ -5,9 +5,11 @@ import (
 
 	"errors"
 
+	"fmt"
 	"github.com/reactivex/rxgo/handlers"
 	"github.com/reactivex/rxgo/optional"
 	"github.com/stretchr/testify/assert"
+	"time"
 )
 
 // Assertion lists the assertions which may be configured on an Observable.
@@ -153,6 +155,38 @@ func AssertThatObservable(t *testing.T, observable Observable, assertions ...Ass
 	observable.Subscribe(handlers.NextFunc(func(i interface{}) {
 		got = append(got, i)
 	})).Block()
+
+	checkHasItems, items := ass.hasItemsFunc()
+	if checkHasItems {
+		assert.Equal(t, items, got)
+	}
+
+	checkHasSize, size := ass.hasSizeFunc()
+	if checkHasSize {
+		assert.Equal(t, size, len(got))
+	}
+
+	checkIsEmpty, empty := ass.isEmptyFunc()
+	if checkIsEmpty {
+		if empty {
+			assert.Equal(t, 0, len(got))
+		} else {
+			assert.NotEqual(t, 0, len(got))
+		}
+	}
+}
+
+// AssertThatConnectableObservable asserts the result of an Observable against a list of assertions.
+func AssertThatConnectableObservable(t *testing.T, observable ConnectableObservable, assertions ...Assertion) {
+	ass := parseAssertions(assertions...)
+	got := make([]interface{}, 0)
+	observable.Subscribe(handlers.NextFunc(func(i interface{}) {
+		fmt.Printf("%v\n", i)
+		got = append(got, i)
+	}))
+	time.Sleep(2 * time.Second)
+	observable.Connect()
+	//subscribe.Block()
 
 	checkHasItems, items := ass.hasItemsFunc()
 	if checkHasItems {
