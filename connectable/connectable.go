@@ -2,6 +2,7 @@
 package connectable
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -149,43 +150,101 @@ func (co Connectable) Do(nextf func(interface{})) Connectable {
 	return co
 }
 
+type obServerChans struct {
+	chanArr   []chan interface{}
+	ctxArr    []context.Context
+	cancelArr []context.CancelFunc
+	sync.Mutex
+}
+
+func (l *obServerChans) append() {
+	l.chanArr = append(l.chanArr, make(chan interface{}))
+	ctx, cancel := context.WithCancel(context.Background())
+	l.ctxArr = append(l.ctxArr, ctx)
+	l.cancelArr = append(l.cancelArr, cancel)
+}
+
+func (l *obServerChans) get(i int) (chan interface{}, context.Context, context.CancelFunc) {
+	return l.chanArr[i], l.ctxArr[i], l.cancelArr[i]
+}
+
+func (l *obServerChans) cancel(i int) {
+	l.Mutex.Lock()
+	defer l.Mutex.Unlock()
+
+	ctx := l.ctxArr[i]
+	if ctx.Err() != nil {
+		// already canceled
+		return
+	}
+
+	l.cancelArr[i]()
+	go func() {
+		// delay close chan
+		time.Sleep(10 * time.Microsecond)
+		close(l.chanArr[i])
+	}()
+}
+
+func (l *obServerChans) cancelAll() {
+	for i := range l.ctxArr {
+		l.cancel(i)
+	}
+}
+
 // Connect activates the Observable stream and returns a channel of Subscription channel.
 func (co Connectable) Connect() <-chan (chan subscription.Subscription) {
 	done := make(chan (chan subscription.Subscription), 1)
-	source := []interface{}{}
 
-	for item := range co.Observable {
-		source = append(source, item)
+	// make local chan
+	locals := new(obServerChans)
+	for range co.observers {
+		locals.append()
 	}
+
+	go func() {
+		for item := range co.Observable {
+			for i := range co.observers {
+				local, ctx, _ := locals.get(i)
+				if ctx.Err() != nil {
+					// ctx is canceled and local will close
+					continue
+				}
+
+				select {
+				case <-ctx.Done():
+				case local <- item:
+				}
+			}
+		}
+		locals.cancelAll()
+	}()
 
 	var wg sync.WaitGroup
 	wg.Add(len(co.observers))
 
-	for _, ob := range co.observers {
-		local := make([]interface{}, len(source))
-		copy(local, source)
-
+	for i, ob := range co.observers {
 		fin := make(chan struct{})
 		sub := subscription.New().Subscribe()
-
-		go func(ob observer.Observer) {
+		go func(ob observer.Observer, index int) {
+			local, _, _ := locals.get(index)
 		OuterLoop:
-			for _, item := range local {
+			for item := range local {
 				switch item := item.(type) {
 				case error:
 					ob.OnError(item)
-
 					// Record error
 					sub.Error = item
+					locals.cancel(index)
 					break OuterLoop
 				default:
 					ob.OnNext(item)
 				}
 			}
 			fin <- struct{}{}
-		}(ob)
+		}(ob, i)
 
-		temp := make(chan subscription.Subscription)
+		temp := make(chan subscription.Subscription, 1)
 
 		go func(ob observer.Observer) {
 			<-fin
@@ -193,11 +252,9 @@ func (co Connectable) Connect() <-chan (chan subscription.Subscription) {
 				ob.OnDone()
 				sub.Unsubscribe()
 			}
-
-			go func() {
-				temp <- sub
-				done <- temp
-			}()
+			temp <- sub
+			done <- temp
+			close(temp)
 			wg.Done()
 		}(ob)
 	}
