@@ -411,8 +411,14 @@ func runFirstItem(ctx context.Context, f func(interface{}) int, notif chan Item,
 					op.err(ctx, i, next, operator)
 					i.SendContext(ctx, notif)
 				} else {
-					op.next(ctx, i, next, operator)
-					Of(f(i.V)).SendContext(ctx, notif)
+					// op.next(ctx, i, next, operator)
+					// Of(f(i.V)).SendContext(ctx, notif)
+					tpChan := make(chan Item, 1)
+					op.next(ctx, i, tpChan, operator)
+					nextVal := <-tpChan
+					value := f(nextVal.V)
+					Of(value).SendContext(ctx, notif)
+					nextVal.SendContext(ctx, next)
 				}
 			}
 		}
